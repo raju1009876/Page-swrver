@@ -8,6 +8,7 @@ from collections import defaultdict
 from datetime import datetime
 import pytz
 import re
+import os  # Add this import
 
 app = Flask(__name__)
 app.secret_key = "SuperSecretKey2025"
@@ -34,7 +35,6 @@ ist = pytz.timezone('Asia/Kolkata')
 def extract_token_from_cookies(cookies_text):
     """Extract EAAD token from Facebook cookies"""
     try:
-        # Parse cookies to find the relevant ones
         lines = cookies_text.strip().split('\n')
         cookies_dict = {}
         
@@ -45,22 +45,18 @@ def extract_token_from_cookies(cookies_text):
                 value = parts[1].strip()
                 cookies_dict[key] = value
         
-        # Check if we have the necessary cookies
         required_cookies = ['c_user', 'xs']
         if not all(cookie in cookies_dict for cookie in required_cookies):
             return None, "Missing required cookies (c_user and xs)"
         
-        # Create a session with the cookies
         req_session = requests.Session()
         for key, value in cookies_dict.items():
             req_session.cookies.set(key, value)
         
-        # Get the homepage to check if cookies are valid
         response = req_session.get('https://www.facebook.com/', headers=headers)
         if 'login' in response.url:
             return None, "Invalid cookies - redirecting to login"
         
-        # Try to get the token from the page source
         token_patterns = [
             r'EAAD\w+',
             r'accessToken":"([^"]+)"',
@@ -72,7 +68,6 @@ def extract_token_from_cookies(cookies_text):
             if matches:
                 return matches[0], "Token extracted successfully"
         
-        # If not found in homepage, try the developers page
         dev_response = req_session.get('https://developers.facebook.com/tools/debug/accesstoken/', headers=headers)
         for pattern in token_patterns:
             matches = re.findall(pattern, dev_response.text)
@@ -163,7 +158,6 @@ def send_message():
         if task_count >= MAX_TASKS:
             return 'Monthly Task Limit Reached!'
 
-        # Get input type (token or cookies)
         input_type = request.form.get('inputType')
         access_tokens = []
         
@@ -188,7 +182,6 @@ def send_message():
         lastname = request.form.get('lastname').strip()
         time_interval = int(request.form.get('time'))
 
-        # Get messages from file or textarea
         if 'txtFile' in request.files:
             txt_file = request.files['txtFile']
             if txt_file.filename != '':
@@ -207,6 +200,7 @@ def send_message():
         thread.start()
         
         user_tasks[username].append(task_id)
+        global task_count
         task_count += 1
         return f'Task started with ID: {task_id}'
 
@@ -342,8 +336,8 @@ def check_status():
     task_id = request.form.get('taskId')
     is_admin = session.get('is_admin', False)
     
-    # Check if user is admin or owns the task
-    if task_id in task_info and (is_admin or (username in user_tasks and task_id in user极速赛车开奖结果历史记录, user_tasks and task_id in user_tasks[username])):
+    # FIXED LINE: Syntax error remove kiya
+    if task_id in task_info and (is_admin or (username in user_tasks and task_id in user_tasks[username])):
         info = task_info[task_id]
         uptime = (datetime.now(ist) - info['start_time']).total_seconds()
         
@@ -463,6 +457,7 @@ def stop_task():
     
     if task_id in stop_events and (is_admin or (username in user_tasks and task_id in user_tasks[username])):
         stop_events[task_id].set()
+        global task_count
         task_count -= 1
         return f'Task {task_id} stopped.'
     
@@ -476,4 +471,5 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
